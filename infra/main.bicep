@@ -1,13 +1,13 @@
 targetScope = 'resourceGroup'
 
-@description('Base name for all resources (lowercase letters and hyphens only, max 17 chars). Must be globally unique.')
+@description('Base name for all resources (lowercase, hyphens OK, max 17 chars).')
 @maxLength(17)
 param appName string
 
-@description('Azure region for App Service resources.')
+@description('Azure region for Container Apps resources.')
 param location string = resourceGroup().location
 
-@description('Azure region for Static Web App (limited availability).')
+@description('Azure region for Static Web App.')
 @allowed([
   'eastus2'
   'centralus'
@@ -19,7 +19,7 @@ param location string = resourceGroup().location
 ])
 param staticWebAppLocation string = 'eastus2'
 
-@description('Gemini API Key. Leave empty to use the heuristic fallback parser.')
+@description('Gemini API Key (optional).')
 @secure()
 param geminiApiKey string = ''
 
@@ -29,40 +29,102 @@ param geminiModel string = 'models/gemini-2.5-flash'
 @description('Gemini base URL.')
 param geminiBaseUrl string = 'https://generativelanguage.googleapis.com/v1beta'
 
-@description('Allowed CORS origin for the API (Static Web App URL). Set automatically by CI/CD after first deploy.')
+@description('Allowed CORS origin (set to Static Web App URL by CI/CD).')
 param allowedOrigin string = '*'
 
+@description('Full container image reference e.g. ghcr.io/user/repo:sha.')
+param containerImage string
+
+@description('Container registry server (e.g. ghcr.io).')
+param registryServer string = 'ghcr.io'
+
+@description('Container registry username.')
+param registryUsername string
+
+@description('Container registry password / token.')
+@secure()
+param registryPassword string
+
 // ---------------------------------------------------------------------------
-// App Service Plan — F1 (Free)
+// Log Analytics — required by Container Apps Environment
 // ---------------------------------------------------------------------------
-resource plan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: '${appName}-plan'
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: '${appName}-logs'
   location: location
-  sku: {
-    name: 'B1'
-    tier: 'Basic'
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 30
   }
-  properties: {}
 }
 
 // ---------------------------------------------------------------------------
-// App Service — .NET 8 API
+// Container Apps Environment — Consumption (serverless, scale to zero)
 // ---------------------------------------------------------------------------
-resource api 'Microsoft.Web/sites@2023-01-01' = {
+resource containerEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: '${appName}-env'
+  location: location
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalytics.properties.customerId
+        sharedKey: logAnalytics.listKeys().primarySharedKey
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Container App — .NET 8 API
+// ---------------------------------------------------------------------------
+resource api 'Microsoft.App/containerApps@2023-05-01' = {
   name: '${appName}-api'
   location: location
   properties: {
-    serverFarmId: plan.id
-    httpsOnly: true
-    siteConfig: {
-      netFrameworkVersion: 'v8.0'
-      appSettings: [
-        { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
-        { name: 'GEMINI_API_KEY', value: geminiApiKey }
-        { name: 'GEMINI_MODEL', value: geminiModel }
-        { name: 'GEMINI_BASE_URL', value: geminiBaseUrl }
-        { name: 'AllowedOrigins__0', value: allowedOrigin }
+    managedEnvironmentId: containerEnv.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'auto'
+      }
+      registries: [
+        {
+          server: registryServer
+          username: registryUsername
+          passwordSecretRef: 'registry-password'
+        }
       ]
+      secrets: [
+        {
+          name: 'registry-password'
+          value: registryPassword
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'api'
+          image: containerImage
+          env: [
+            { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+            { name: 'ASPNETCORE_URLS', value: 'http://+:8080' }
+            { name: 'GEMINI_API_KEY', value: geminiApiKey }
+            { name: 'GEMINI_MODEL', value: geminiModel }
+            { name: 'GEMINI_BASE_URL', value: geminiBaseUrl }
+            { name: 'AllowedOrigins__0', value: allowedOrigin }
+          ]
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 1
+      }
     }
   }
 }
@@ -81,8 +143,8 @@ resource swa 'Microsoft.Web/staticSites@2023-01-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// Outputs (consumed by CI/CD workflow)
+// Outputs
 // ---------------------------------------------------------------------------
-output apiUrl string = 'https://${api.properties.defaultHostName}'
+output apiUrl string = 'https://${api.properties.configuration.ingress.fqdn}'
 output staticWebAppUrl string = 'https://${swa.properties.defaultHostname}'
 output staticWebAppHostname string = swa.properties.defaultHostname

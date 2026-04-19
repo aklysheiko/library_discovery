@@ -6,13 +6,11 @@ on:
   workflow_dispatch:
 
 env:
-  # ⚠️  Update these to match your infra/main.bicepparam values.
   RESOURCE_GROUP: rg-library-discovery
-  APP_NAME: libdiscovery          # must match appName in main.bicepparam
-  LOCATION: westus2
-  SWA_LOCATION: eastus2
+  APP_NAME: libdiscovery
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20.x'
+  REGISTRY: ghcr.io
 
 jobs:
   deploy:
@@ -20,25 +18,60 @@ jobs:
     environment: DEV
     permissions:
       contents: read
+      packages: write   # needed to push to ghcr.io
 
     steps:
       # -----------------------------------------------------------------------
-      # Checkout & Azure login
+      # Checkout
       # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
+      # -----------------------------------------------------------------------
+      # Azure login
+      # -----------------------------------------------------------------------
       - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: >
-            {"clientId":"${{ secrets.AZURE_CLIENT_ID }}",
-             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
-             "subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}",
-             "tenantId":"${{ secrets.AZURE_TENANT_ID }}"}
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.AZURE_CLIENT_ID }}" \
+            --password "${{ secrets.AZURE_CLIENT_SECRET }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}"
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
       # -----------------------------------------------------------------------
-      # Infrastructure — first pass (SWA not yet known, CORS = *)
+      # Register resource providers (safe to re-run)
+      # -----------------------------------------------------------------------
+      - name: Register resource providers
+        run: |
+          az provider register --namespace Microsoft.App --wait
+          az provider register --namespace Microsoft.OperationalInsights --wait
+          az provider register --namespace Microsoft.Web --wait
+
+      # -----------------------------------------------------------------------
+      # Build & push Docker image to ghcr.io
+      # -----------------------------------------------------------------------
+      - name: Set image name
+        id: image
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=${{ env.REGISTRY }}/${OWNER}/library-discovery-api:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}
+
+      # -----------------------------------------------------------------------
+      # Create resource group
       # -----------------------------------------------------------------------
       - name: Create resource group
         run: |
@@ -46,7 +79,10 @@ jobs:
             --name "${{ env.RESOURCE_GROUP }}" \
             --location "eastus"
 
-      - name: Deploy infrastructure (pass 1 — provision resources)
+      # -----------------------------------------------------------------------
+      # Deploy infrastructure — pass 1 (CORS = *)
+      # -----------------------------------------------------------------------
+      - name: Deploy infrastructure (pass 1)
         id: infra1
         run: |
           OUTPUTS=$(az deployment group create \
@@ -54,6 +90,9 @@ jobs:
             --template-file infra/main.bicep \
             --parameters @infra/main.parameters.json \
             --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --parameters containerImage="${{ steps.image.outputs.name }}" \
+            --parameters registryUsername="${{ github.repository_owner }}" \
+            --parameters registryPassword="${{ secrets.GHCR_TOKEN }}" \
             --query "properties.outputs" -o json)
 
           SWA_URL=$(echo "$OUTPUTS" | jq -r '.staticWebAppUrl.value')
@@ -65,7 +104,7 @@ jobs:
           echo "swa_host=$SWA_HOST" >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
-      # Infrastructure — second pass (set CORS to actual SWA URL)
+      # Deploy infrastructure — pass 2 (set CORS to actual SWA URL)
       # -----------------------------------------------------------------------
       - name: Deploy infrastructure (pass 2 — set CORS)
         run: |
@@ -74,27 +113,10 @@ jobs:
             --template-file infra/main.bicep \
             --parameters @infra/main.parameters.json \
             --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --parameters containerImage="${{ steps.image.outputs.name }}" \
+            --parameters registryUsername="${{ github.repository_owner }}" \
+            --parameters registryPassword="${{ secrets.GHCR_TOKEN }}" \
             --parameters allowedOrigin="${{ steps.infra1.outputs.swa_url }}"
-
-      # -----------------------------------------------------------------------
-      # Build & deploy .NET 8 API
-      # -----------------------------------------------------------------------
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Publish .NET API
-        run: |
-          dotnet publish LibraryDiscovery/LibraryDiscovery.csproj \
-            -c Release \
-            -o ./publish/api
-
-      - name: Deploy API to App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.APP_NAME }}-api
-          package: ./publish/api
 
       # -----------------------------------------------------------------------
       # Build & deploy React frontend
