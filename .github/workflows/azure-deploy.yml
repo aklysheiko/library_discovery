@@ -52,7 +52,7 @@ jobs:
           OUTPUTS=$(az deployment group create \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
             --template-file infra/main.bicep \
-            --parameters @infra/main.bicepparam \
+            --parameters @infra/main.parameters.json \
             --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
             --query "properties.outputs" -o json)
 
@@ -72,7 +72,7 @@ jobs:
           az deployment group create \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
             --template-file infra/main.bicep \
-            --parameters @infra/main.bicepparam \
+            --parameters @infra/main.parameters.json \
             --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
             --parameters allowedOrigin="${{ steps.infra1.outputs.swa_url }}"
 

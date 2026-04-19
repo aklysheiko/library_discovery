@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "libdiscovery"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "staticWebAppLocation": {
+      "value": "eastus2"
+    },
+    "geminiModel": {
+      "value": "models/gemini-2.5-flash"
+    },
+    "geminiBaseUrl": {
+      "value": "https://generativelanguage.googleapis.com/v1beta"
+    }
+  }
+}
