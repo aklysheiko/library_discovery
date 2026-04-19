@@ -9,7 +9,7 @@ env:
   # ⚠️  Update these to match your infra/main.bicepparam values.
   RESOURCE_GROUP: rg-library-discovery
   APP_NAME: libdiscovery          # must match appName in main.bicepparam
-  LOCATION: eastus
+  LOCATION: westus2
   SWA_LOCATION: eastus2
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20.x'
