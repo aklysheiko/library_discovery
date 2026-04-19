@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>f00caeb0-e612-46f2-9927-93b123663039</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.25" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\LibraryDiscovery.Application\LibraryDiscovery.Application.csproj" />
+    <ProjectReference Include="..\src\LibraryDiscovery.Infrastructure\LibraryDiscovery.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

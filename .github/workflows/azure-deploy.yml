@@ -1,0 +1,128 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # ⚠️  Update these to match your infra/main.bicepparam values.
+  RESOURCE_GROUP: rg-library-discovery
+  APP_NAME: libdiscovery          # must match appName in main.bicepparam
+  LOCATION: eastus
+  SWA_LOCATION: eastus2
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Checkout & Azure login
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # -----------------------------------------------------------------------
+      # Infrastructure — first pass (SWA not yet known, CORS = *)
+      # -----------------------------------------------------------------------
+      - name: Create resource group
+        run: |
+          az group create \
+            --name "${{ env.RESOURCE_GROUP }}" \
+            --location "${{ env.LOCATION }}"
+
+      - name: Deploy infrastructure (pass 1 — provision resources)
+        id: infra1
+        run: |
+          OUTPUTS=$(az deployment group create \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --template-file infra/main.bicep \
+            --parameters @infra/main.bicepparam \
+            --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --query "properties.outputs" -o json)
+
+          SWA_URL=$(echo "$OUTPUTS" | jq -r '.staticWebAppUrl.value')
+          API_URL=$(echo "$OUTPUTS" | jq -r '.apiUrl.value')
+          SWA_HOST=$(echo "$OUTPUTS" | jq -r '.staticWebAppHostname.value')
+
+          echo "swa_url=$SWA_URL"   >> "$GITHUB_OUTPUT"
+          echo "api_url=$API_URL"   >> "$GITHUB_OUTPUT"
+          echo "swa_host=$SWA_HOST" >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # Infrastructure — second pass (set CORS to actual SWA URL)
+      # -----------------------------------------------------------------------
+      - name: Deploy infrastructure (pass 2 — set CORS)
+        run: |
+          az deployment group create \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --template-file infra/main.bicep \
+            --parameters @infra/main.bicepparam \
+            --parameters geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --parameters allowedOrigin="${{ steps.infra1.outputs.swa_url }}"
+
+      # -----------------------------------------------------------------------
+      # Build & deploy .NET 8 API
+      # -----------------------------------------------------------------------
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish .NET API
+        run: |
+          dotnet publish LibraryDiscovery/LibraryDiscovery.csproj \
+            -c Release \
+            -o ./publish/api
+
+      - name: Deploy API to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}-api
+          package: ./publish/api
+
+      # -----------------------------------------------------------------------
+      # Build & deploy React frontend
+      # -----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_BASE_URL: ${{ steps.infra1.outputs.api_url }}/api
+
+      - name: Get SWA deployment token
+        id: swa-token
+        run: |
+          TOKEN=$(az staticwebapp secrets list \
+            --name "${{ env.APP_NAME }}-frontend" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy frontend to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa-token.outputs.token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: frontend/dist
+          skip_app_build: true
