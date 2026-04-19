@@ -1,4 +1,4 @@
-import { BookMatch } from './api'
+import { BookMatch } from '../api'
 
 interface BookCardProps {
   match: BookMatch
