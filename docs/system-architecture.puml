@@ -1,0 +1,78 @@
+@startuml Library Discovery - System Architecture
+
+skinparam backgroundColor #FAFAFA
+skinparam defaultTextAlignment center
+
+skinparam rectangle {
+  BackgroundColor #EEF4FF
+  BorderColor #5577BB
+  FontColor #222222
+}
+
+skinparam cloud {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+
+skinparam actor {
+  BackgroundColor #E8F5E9
+  BorderColor #388E3C
+}
+
+skinparam arrow {
+  Color #555555
+  FontColor #333333
+  FontSize 11
+}
+
+actor "User\n(Browser)" as user
+
+package "GitHub" {
+  rectangle "Source Code\n(github.com/aklysheiko/\nlibrary_discovery)" as repo
+  rectangle "GitHub Actions\nCI/CD Workflow" as cicd
+  rectangle "GitHub Container\nRegistry (ghcr.io)\nDocker image" as ghcr
+}
+
+package "Azure" {
+  rectangle "Azure Static Web App\n(Free tier)\nyellow-wave-*.azurestaticapps.net\n\nReact 18 + Vite + Tailwind" as swa
+
+  package "Container Apps Environment\n(Consumption — scales to zero)" {
+    rectangle "Azure Container App\n(.NET 8 API)\n\nBooksController\nBookMatchService\nScoring + Explanation" as api
+  }
+
+  rectangle "Log Analytics Workspace\n(30-day retention)" as logs
+}
+
+cloud "External APIs" {
+  rectangle "Open Library\nopenlibrary.org\n/search.json\n/works/{id}.json\n/authors/{id}.json" as openlibrary
+  rectangle "Google Gemini AI\ngenerativelanguage\n.googleapis.com\n\nQuery parsing" as gemini
+}
+
+' --- User flow ---
+user -right-> swa : HTTPS\nopen browser
+swa -right-> api : POST /api/books/match\n(CORS-restricted to SWA origin)
+api -down-> openlibrary : Search & work/author\nlookup (public API)
+api -down-> gemini : Parse query\n(optional — key in env var)
+
+' --- Deployment flow ---
+repo -down-> cicd : git push to main\ntriggers workflow
+cicd -right-> ghcr : docker build & push\n(image tagged by commit SHA)
+cicd -down-> api : az deployment\nbicep + container image
+cicd -down-> swa : npm build\n+ SWA deploy action
+
+' --- Observability ---
+api -right-> logs : stdout logs\n(via Container Apps)
+
+note bottom of api
+  Scales to 0 replicas when idle
+  Max 1 replica (0.25 CPU / 0.5 GB RAM)
+  GEMINI_API_KEY injected from
+  GitHub Secrets at deploy time
+end note
+
+note bottom of swa
+  Static files only — no server
+  CDN-served globally (Free tier)
+end note
+
+@enduml

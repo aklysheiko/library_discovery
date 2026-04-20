@@ -1,0 +1,115 @@
+@startuml Library Discovery - Backend Logic
+
+skinparam backgroundColor #FAFAFA
+skinparam sequence {
+  ArrowColor #555555
+  ActorBorderColor #555555
+  LifeLineBorderColor #555555
+  ParticipantBackgroundColor #EEF4FF
+  ParticipantBorderColor #5577BB
+  NoteBackgroundColor #FFFDE7
+  NoteBorderColor #CCAA00
+}
+
+actor Client
+participant "BooksController" as ctrl
+participant "BookMatchService\n(Orchestrator)" as svc
+participant "IQueryParsingService\n(Gemini / Regex)" as parser
+participant "OpenLibrarySearchService" as search
+participant "CandidateEnrichmentService" as enrich
+participant "WorkDetailsService" as works
+participant "BookMatcherService\n(Scorer)" as matcher
+participant "ExplanationBuilder" as explain
+
+== Happy Path ==
+
+Client -> ctrl : POST /api/books/match\n{ query: "lord rings tolkien" }
+ctrl -> svc : MatchAsync(rawQuery)
+
+svc -> parser : ParseAsync(rawQuery)
+note right of parser
+  Gemini AI (if key set)
+  → regex fallback otherwise
+  Returns: TitleCandidates,
+  AuthorCandidates, YearHint
+end note
+parser --> svc : ParsedQuery
+
+note over svc
+  Detect author-only mode:
+  IsAuthorOnlyQuery = no titles AND author present
+end note
+
+svc -> search : SearchAsync(title, author, limit=20)
+note right of search
+  GET openlibrary.org/search.json
+  Returns up to 20 raw search docs
+end note
+search --> svc : List<OpenLibrarySearchDoc>
+
+svc -> enrich : EnrichAsync(docs)
+
+loop for each deduplicated doc
+  enrich -> works : GetPrimaryAuthorsAsync(workId)
+  note right of works
+    GET /works/{id}.json
+    → extract author keys
+    GET /authors/{id}.json per key
+    → resolve real names
+    (cached in-memory)
+  end note
+  works --> enrich : string[] primaryAuthors
+end
+
+note over enrich
+  Demotes search-doc authors
+  to ContributorAuthors when
+  canonical authors resolved
+end note
+enrich --> svc : List<BookCandidate>
+
+svc -> matcher : RankCandidates(parsedQuery, candidates)
+
+alt Normal mode (title + author query)
+  note right of matcher
+    ScoreTitle   max 60 pts
+    ScoreAuthor  max 30 pts
+    ScoreYear    max  5 pts
+    EditionCount max  3 pts
+  end note
+else Author-only mode
+  note right of matcher
+    ScoreAuthor        max 30 pts
+    EditionCount (x5)  max 20 pts
+  end note
+end
+
+matcher --> svc : List<MatchEvaluation> (sorted desc, with MatchStrength tier)
+
+note over svc : Take top 5 results
+
+loop for each top evaluation
+  svc -> explain : BuildExplanation(evaluation)
+  explain --> svc : explanation string
+end
+
+svc --> ctrl : BookMatchResponse\n{ matches[0..4] with score, matchTier, explanation }
+ctrl --> Client : 200 OK JSON
+
+== Edge Cases ==
+
+alt Empty / whitespace query
+  ctrl --> Client : 400 Bad Request
+end
+
+alt No search results
+  svc --> ctrl : BookMatchResponse { matches: [] }
+  ctrl --> Client : 200 OK (empty matches)
+end
+
+alt Exception thrown
+  svc --> ctrl : BookMatchResponse { message: error }
+  ctrl --> Client : 200 OK (with error message)
+end
+
+@enduml

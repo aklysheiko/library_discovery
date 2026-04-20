@@ -2,6 +2,8 @@
 
 A full-stack book discovery application that intelligently matches messy book queries to exact books in the Open Library.
 
+**Live demo:** https://yellow-wave-0a3699f0f.7.azurestaticapps.net/
+
 ## What it does
 
 - **Smart Query Parsing**: Extracts title, author, year, and keywords from messy queries (e.g., "lord of rings tolkien 1954")
@@ -170,12 +172,19 @@ Match a book query to Open Library books.
   ]
 }
 ```
+## Back-End 
+![App screenshot](docs/book-match-sequence.png)
+
+## Top level view of the system
+![App screenshot](docs/system-architecture-diagram.png)
 
 ## Learning Resources
 
 - See [SETUP.md](SETUP.md) for detailed backend setup
 - See [RUN_LOCALLY.txt](RUN_LOCALLY.txt) for full local setup instructions including frontend
 - See [frontend/README.md](frontend/README.md) for detailed frontend setup
+- See [docs/backend-logic.puml](docs/book-match-sequence.puml) for the backend sequence diagram (PlantUML)
+- See [docs/system-architecture.puml](docs/system-architecture.puml) for the full system architecture diagram (PlantUML)
 - API documentation available at: http://localhost:5248/swagger
 
 ## Notes
