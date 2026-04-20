@@ -21,6 +21,11 @@ public class BookMatchResultDto
     public int Score { get; set; }
     
     /// <summary>
+    /// Named match tier (e.g. "ExactTitleAndPrimaryAuthor").
+    /// </summary>
+    public string MatchTier { get; set; } = string.Empty;
+
+    /// <summary>
     /// Short grounded explanation of why this book matched.
     /// </summary>
     public string Explanation { get; set; } = string.Empty;

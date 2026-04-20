@@ -170,12 +170,29 @@ public class FallbackQueryParserTests
 public class GeminiQueryParsingServiceTests
 {
     private readonly FallbackQueryParser _fallbackParser = new();
+    private static readonly Microsoft.Extensions.Logging.Abstractions.NullLogger<GeminiQueryParsingService> _logger =
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<GeminiQueryParsingService>.Instance;
+
+    // Minimal IConfiguration stub that returns a fixed key value
+    private sealed class FakeConfig : IConfiguration
+    {
+        private readonly string? _apiKey;
+        public FakeConfig(string? apiKey = null) => _apiKey = apiKey;
+        public string? this[string key]
+        {
+            get => key == "GEMINI_API_KEY" ? _apiKey : null;
+            set { }
+        }
+        public IConfigurationSection GetSection(string key) => throw new NotSupportedException();
+        public IEnumerable<IConfigurationSection> GetChildren() => [];
+        public Microsoft.Extensions.Primitives.IChangeToken GetReloadToken() => throw new NotSupportedException();
+    }
 
     [Fact]
     public void Constructor_WithNullHttpClient_ThrowsArgumentNull()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new GeminiQueryParsingService(null!, _fallbackParser, "key")
+            new GeminiQueryParsingService(null!, _fallbackParser, _logger, new FakeConfig())
         );
     }
 
@@ -184,7 +201,7 @@ public class GeminiQueryParsingServiceTests
     {
         var httpClient = new HttpClient();
         Assert.Throws<ArgumentNullException>(() =>
-            new GeminiQueryParsingService(httpClient, null!, "key")
+            new GeminiQueryParsingService(httpClient, null!, _logger, new FakeConfig())
         );
     }
 
@@ -192,7 +209,7 @@ public class GeminiQueryParsingServiceTests
     public async Task ParseAsync_EmptyQuery_ReturnsParsedQueryWithEmpty()
     {
         var httpClient = new HttpClient();
-        var service = new GeminiQueryParsingService(httpClient, _fallbackParser, null);
+        var service = new GeminiQueryParsingService(httpClient, _fallbackParser, _logger, new FakeConfig());
 
         var result = await service.ParseAsync(string.Empty, CancellationToken.None);
 
@@ -204,7 +221,7 @@ public class GeminiQueryParsingServiceTests
     public async Task ParseAsync_NoApiKeyConfigured_UsesFallback()
     {
         var httpClient = new HttpClient();
-        var service = new GeminiQueryParsingService(httpClient, _fallbackParser, (string)null!);
+        var service = new GeminiQueryParsingService(httpClient, _fallbackParser, _logger, new FakeConfig());
 
         var result = await service.ParseAsync("Hobbit by Tolkien", CancellationToken.None);
 
@@ -218,7 +235,7 @@ public class GeminiQueryParsingServiceTests
     {
         var httpClient = new HttpClient();
         var fallback = new FallbackQueryParser();
-        var service = new GeminiQueryParsingService(httpClient, fallback, "invalid-key-for-test");
+        var service = new GeminiQueryParsingService(httpClient, fallback, _logger, new FakeConfig("invalid-key-for-test"));
 
         // This would attempt API call and fail, then use fallback
         var result = await service.ParseAsync("The Hobbit", CancellationToken.None);

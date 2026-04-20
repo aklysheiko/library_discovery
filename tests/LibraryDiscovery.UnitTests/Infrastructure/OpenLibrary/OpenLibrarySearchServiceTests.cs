@@ -1,6 +1,4 @@
-using LibraryDiscovery.Application.Interfaces;
-using LibraryDiscovery.Infrastructure.OpenLibrary;
-using Xunit;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LibraryDiscovery.UnitTests.Infrastructure.OpenLibrary;
 
@@ -12,7 +10,7 @@ public class OpenLibrarySearchServiceTests
     public OpenLibrarySearchServiceTests()
     {
         _httpClient = new HttpClient();
-        _service = new OpenLibrarySearchService(_httpClient);
+        _service = new OpenLibrarySearchService(_httpClient, NullLogger<OpenLibrarySearchService>.Instance);
     }
 
     #region Constructor Tests
@@ -20,7 +18,8 @@ public class OpenLibrarySearchServiceTests
     [Fact]
     public void Constructor_WithNullHttpClient_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new OpenLibrarySearchService(null!));
+        Assert.Throws<ArgumentNullException>(() =>
+            new OpenLibrarySearchService(null!, NullLogger<OpenLibrarySearchService>.Instance));
     }
 
     #endregion
@@ -205,7 +204,7 @@ public class OpenLibrarySearchServiceTests
     {
         // Using invalid URL to trigger network error
         var httpClient = new HttpClient();
-        var service = new OpenLibrarySearchService(httpClient);
+        var service = new OpenLibrarySearchService(httpClient, NullLogger<OpenLibrarySearchService>.Instance);
 
         var request = new OpenLibrarySearchRequest
         {
@@ -270,7 +269,7 @@ public class OpenLibrarySearchServiceTests
         };
 
         using var httpClient = new HttpClient();
-        var service = new OpenLibrarySearchService(httpClient);
+        var service = new OpenLibrarySearchService(httpClient, NullLogger<OpenLibrarySearchService>.Instance);
         var result = await service.SearchAsync(request, CancellationToken.None);
 
         // If tests run online:
@@ -296,7 +295,7 @@ public class OpenLibrarySearchServiceTests
         };
 
         using var httpClient = new HttpClient();
-        var service = new OpenLibrarySearchService(httpClient);
+        var service = new OpenLibrarySearchService(httpClient, NullLogger<OpenLibrarySearchService>.Instance);
         var result = await service.SearchAsync(request, CancellationToken.None);
 
         // Jane Austen has many books - should return results if online

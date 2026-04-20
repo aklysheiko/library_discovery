@@ -14,6 +14,11 @@ public class MatchEvaluation
     /// The matching strength (100 = exact, 0 = no match).
     /// </summary>
     public int Score { get; set; }
+
+    /// <summary>
+    /// Named match tier derived from Score. Replaces magic numbers in the API contract.
+    /// </summary>
+    public LibraryDiscovery.Domain.Enums.MatchStrength MatchStrength { get; set; }
     
     /// <summary>
     /// Ordered list of reasons this match scored well (e.g., "exact title", "primary author match").

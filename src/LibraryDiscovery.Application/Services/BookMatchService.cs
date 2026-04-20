@@ -49,6 +49,16 @@ public class BookMatchService : IBookMatchService
             var parsedQuery = await _queryParser.ParseAsync(rawQuery, cancellationToken);
             _logger.LogInformation("Parsed query: Titles={Titles}, Authors={Authors}, Keywords={Keywords}, Year={Year}, Notes={Notes}",
                 parsedQuery.TitleCandidates.Count, parsedQuery.AuthorCandidates.Count, parsedQuery.Keywords.Count, parsedQuery.YearHint, parsedQuery.ConfidenceNotes);
+
+            // Detect author-only queries: no title candidates, at least one author.
+            // In this mode, results are ranked by author match + edition count rather
+            // than title similarity, returning the author's top works.
+            parsedQuery.IsAuthorOnlyQuery =
+                parsedQuery.TitleCandidates.Count == 0 &&
+                parsedQuery.AuthorCandidates.Count > 0;
+
+            if (parsedQuery.IsAuthorOnlyQuery)
+                _logger.LogInformation("Author-only query detected for: {Author}", parsedQuery.AuthorCandidates.FirstOrDefault());
             
             // Step 2: Create search request from parsed query
             var searchRequest = new OpenLibrarySearchRequest
@@ -87,8 +97,9 @@ public class BookMatchService : IBookMatchService
                 _logger.LogInformation("Top matches: {Top}", string.Join(", ", top));
             }
 
-            // Step 6: Build explanations and convert to DTOs
+            // Step 6: Build explanations and convert to DTOs (cap at 5 per spec)
             var matchResults = rankedCandidates
+                .Take(5)
                 .Select(evaluation => ConvertToResultDto(evaluation))
                 .ToList();
 
@@ -129,6 +140,7 @@ public class BookMatchService : IBookMatchService
             OpenLibraryWorkId = evaluation.Candidate.OpenLibraryWorkId,
             CoverUrl = evaluation.Candidate.CoverUrl,
             Score = evaluation.Score,
+            MatchTier = evaluation.MatchStrength.ToString(),
             Explanation = explanation
         };
     }

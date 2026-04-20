@@ -31,4 +31,11 @@ public class ParsedQuery
     /// Parser confidence notes for debugging.
     /// </summary>
     public string? ConfidenceNotes { get; set; }
+
+    /// <summary>
+    /// True when the query contains only author information and no title candidates.
+    /// Signals the matcher to surface top works by that author rather than scoring
+    /// by title similarity.
+    /// </summary>
+    public bool IsAuthorOnlyQuery { get; set; }
 }

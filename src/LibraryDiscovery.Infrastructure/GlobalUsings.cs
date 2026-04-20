@@ -1,10 +1,6 @@
-global using Xunit;
+global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Configuration;
 global using LibraryDiscovery.Application.DTOs;
 global using LibraryDiscovery.Application.Interfaces;
-global using LibraryDiscovery.Application.Services;
 global using LibraryDiscovery.Domain.Entities;
 global using LibraryDiscovery.Domain.ValueObjects;
-global using LibraryDiscovery.Infrastructure.Llm;
-global using LibraryDiscovery.Infrastructure.Normalization;
-global using LibraryDiscovery.Infrastructure.OpenLibrary;

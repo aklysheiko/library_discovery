@@ -30,6 +30,7 @@ builder.Services.AddCors(options =>
 
 // Register infrastructure services
 builder.Services.AddHttpClient<IOpenLibrarySearchService, OpenLibrarySearchService>();
+builder.Services.AddHttpClient<IWorkDetailsService, WorkDetailsService>();
 builder.Services.AddScoped<IStringNormalizationService, StringNormalizationService>();
 builder.Services.AddScoped<ICandidateEnrichmentService, CandidateEnrichmentService>();
 builder.Services.AddScoped<IExplanationBuilder, ExplanationBuilder>();

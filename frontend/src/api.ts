@@ -10,6 +10,7 @@ export interface BookMatch {
   openLibraryWorkId?: string
   coverUrl?: string
   score: number
+  matchTier: string
   explanation: string
 }
 

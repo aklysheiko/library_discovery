@@ -42,26 +42,32 @@ public class BookMatcherService : IBookMatcher
         var reasons = new List<string>();
         int score = 0;
 
-        // Score title matching
-        var titleScore = ScoreTitle(query, candidate, reasons);
-        score += titleScore;
+        if (query.IsAuthorOnlyQuery)
+        {
+            // Author-only mode: rank by author match + edition count (popularity).
+            // Title scoring is intentionally skipped — we want top works by this author.
+            var authorScore = ScoreAuthor(query, candidate, reasons);
+            score += authorScore;
 
-        // Score author matching
-        var authorScore = ScoreAuthor(query, candidate, reasons);
-        score += authorScore;
-
-        // Score year hint matching
-        var yearScore = ScoreYear(query, candidate, reasons);
-        score += yearScore;
-
-        // Apply modifier for edition count (popularity/canonical status)
-        var editionScore = ScoreEditionCount(candidate, reasons);
-        score += editionScore;
+            // Edition count is the primary differentiator between an author's works
+            // in this mode, so use an expanded scale (0-20).
+            var editionScore = ScoreEditionCountForAuthorMode(candidate, reasons);
+            score += editionScore;
+        }
+        else
+        {
+            // Normal mode: title + author + year + edition count tie-breaker.
+            score += ScoreTitle(query, candidate, reasons);
+            score += ScoreAuthor(query, candidate, reasons);
+            score += ScoreYear(query, candidate, reasons);
+            score += ScoreEditionCount(candidate, reasons);
+        }
 
         return new MatchEvaluation
         {
             Candidate = candidate,
-            Score = Math.Max(0, score), // Ensure non-negative
+            Score = Math.Max(0, score),
+            MatchStrength = ScoreToMatchStrength(score),
             MatchReasons = reasons.AsReadOnly()
         };
     }
@@ -274,6 +280,46 @@ public class BookMatcherService : IBookMatcher
             return 2;
         }
 
+        return 1;
+    }
+
+    private static LibraryDiscovery.Domain.Enums.MatchStrength ScoreToMatchStrength(int score) =>
+        score switch
+        {
+            >= 85 => LibraryDiscovery.Domain.Enums.MatchStrength.ExactTitleAndPrimaryAuthor,
+            >= 65 => LibraryDiscovery.Domain.Enums.MatchStrength.ExactTitleAndContributorAuthor,
+            >= 45 => LibraryDiscovery.Domain.Enums.MatchStrength.NearTitleAndAuthor,
+            >= 25 => LibraryDiscovery.Domain.Enums.MatchStrength.AuthorOnlyFallback,
+            >  0  => LibraryDiscovery.Domain.Enums.MatchStrength.WeakCandidate,
+            _     => LibraryDiscovery.Domain.Enums.MatchStrength.NoMatch
+        };
+
+    /// <summary>
+    /// Edition count scoring for author-only mode (0-20).
+    /// More granular so popular works rise above obscure ones.
+    /// </summary>
+    private int ScoreEditionCountForAuthorMode(BookCandidate candidate, List<string> reasons)
+    {
+        if (candidate.EditionCount >= 200)
+        {
+            reasons.Add($"Iconic work ({candidate.EditionCount} editions)");
+            return 20;
+        }
+        if (candidate.EditionCount >= 100)
+        {
+            reasons.Add($"Major work ({candidate.EditionCount} editions)");
+            return 15;
+        }
+        if (candidate.EditionCount >= 50)
+        {
+            reasons.Add($"High canonical status ({candidate.EditionCount} editions)");
+            return 10;
+        }
+        if (candidate.EditionCount >= 20)
+        {
+            reasons.Add($"Well-established work ({candidate.EditionCount} editions)");
+            return 5;
+        }
         return 1;
     }
 }

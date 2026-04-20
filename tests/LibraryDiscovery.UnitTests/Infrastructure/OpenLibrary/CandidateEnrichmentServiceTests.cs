@@ -3,12 +3,14 @@ namespace LibraryDiscovery.UnitTests.Infrastructure.OpenLibrary;
 public class CandidateEnrichmentServiceTests
 {
     private readonly IStringNormalizationService _normalizationService;
+    private readonly IWorkDetailsService _noOpWorkDetails;
     private readonly CandidateEnrichmentService _enrichmentService;
 
     public CandidateEnrichmentServiceTests()
     {
         _normalizationService = new MockStringNormalizationService();
-        _enrichmentService = new CandidateEnrichmentService(_normalizationService);
+        _noOpWorkDetails = new NoOpWorkDetailsService();
+        _enrichmentService = new CandidateEnrichmentService(_normalizationService, _noOpWorkDetails);
     }
 
     #region Constructor Tests
@@ -17,7 +19,15 @@ public class CandidateEnrichmentServiceTests
     public void Constructor_WithNullNormalizationService_ThrowsArgumentNull()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new CandidateEnrichmentService(null!)
+            new CandidateEnrichmentService(null!, _noOpWorkDetails)
+        );
+    }
+
+    [Fact]
+    public void Constructor_WithNullWorkDetailsService_ThrowsArgumentNull()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new CandidateEnrichmentService(_normalizationService, null!)
         );
     }
 
@@ -382,6 +392,27 @@ public class CandidateEnrichmentServiceTests
 }
 
 /// <summary>
+/// No-op stub that always returns empty authors — lets existing enrichment tests
+/// exercise the search-doc fallback path without making real HTTP calls.
+/// </summary>
+internal class NoOpWorkDetailsService : IWorkDetailsService
+{
+    public Task<string[]> GetPrimaryAuthorsAsync(string workId, CancellationToken cancellationToken)
+        => Task.FromResult(Array.Empty<string>());
+}
+
+/// <summary>
+/// Stub that returns a fixed author list for any workId.
+/// </summary>
+internal class FixedWorkDetailsService : IWorkDetailsService
+{
+    private readonly string[] _authors;
+    public FixedWorkDetailsService(params string[] authors) => _authors = authors;
+    public Task<string[]> GetPrimaryAuthorsAsync(string workId, CancellationToken cancellationToken)
+        => Task.FromResult(_authors);
+}
+
+/// <summary>
 /// Mock implementation for testing that matches test expectations.
 /// </summary>
 internal class MockStringNormalizationService : IStringNormalizationService
@@ -407,5 +438,172 @@ internal class MockStringNormalizationService : IStringNormalizationService
         var stopwords = new[] { "the", "a", "an" };
         var filtered = tokens.Where(t => !stopwords.Contains(t)).ToArray();
         return string.Join(" ", filtered);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WorkDetailsService unit tests
+// ---------------------------------------------------------------------------
+
+public class WorkDetailsServiceParserTests
+{
+    // --- ParseAuthorKeys ---
+
+    [Fact]
+    public void ParseAuthorKeys_ValidWorkJson_ReturnsKeys()
+    {
+        var json = """
+            {
+              "authors": [
+                { "author": { "key": "/authors/OL26320A" }, "type": { "key": "/type/author_role" } },
+                { "author": { "key": "/authors/OL1234B" } }
+              ]
+            }
+            """;
+
+        var keys = WorkDetailsService.ParseAuthorKeys(json);
+
+        Assert.Equal(2, keys.Length);
+        Assert.Contains("/authors/OL26320A", keys);
+        Assert.Contains("/authors/OL1234B", keys);
+    }
+
+    [Fact]
+    public void ParseAuthorKeys_NoAuthorsProperty_ReturnsEmpty()
+    {
+        var json = """{ "title": "Some Book" }""";
+
+        var keys = WorkDetailsService.ParseAuthorKeys(json);
+
+        Assert.Empty(keys);
+    }
+
+    [Fact]
+    public void ParseAuthorKeys_EmptyAuthorsArray_ReturnsEmpty()
+    {
+        var json = """{ "authors": [] }""";
+
+        var keys = WorkDetailsService.ParseAuthorKeys(json);
+
+        Assert.Empty(keys);
+    }
+
+    [Fact]
+    public void ParseAuthorKeys_MalformedJson_ReturnsEmpty()
+    {
+        var keys = WorkDetailsService.ParseAuthorKeys("not json");
+
+        Assert.Empty(keys);
+    }
+
+    // --- ParseAuthorName ---
+
+    [Fact]
+    public void ParseAuthorName_NameProperty_ReturnsName()
+    {
+        var json = """{ "name": "J.R.R. Tolkien" }""";
+
+        var name = WorkDetailsService.ParseAuthorName(json);
+
+        Assert.Equal("J.R.R. Tolkien", name);
+    }
+
+    [Fact]
+    public void ParseAuthorName_PersonalNameFallback_ReturnsPersonalName()
+    {
+        var json = """{ "personal_name": "John Ronald Reuel Tolkien" }""";
+
+        var name = WorkDetailsService.ParseAuthorName(json);
+
+        Assert.Equal("John Ronald Reuel Tolkien", name);
+    }
+
+    [Fact]
+    public void ParseAuthorName_NoNameProperties_ReturnsNull()
+    {
+        var json = """{ "bio": "An author" }""";
+
+        var name = WorkDetailsService.ParseAuthorName(json);
+
+        Assert.Null(name);
+    }
+
+    [Fact]
+    public void ParseAuthorName_MalformedJson_ReturnsNull()
+    {
+        var name = WorkDetailsService.ParseAuthorName("not json");
+
+        Assert.Null(name);
+    }
+}
+
+public class WorkDetailsServiceEnrichmentIntegrationTests
+{
+    // Tests that CandidateEnrichmentService uses work-detail authors when available
+
+    [Fact]
+    public async Task EnrichAsync_WorkDetailsReturnsAuthors_OverridesSearchDocAuthors()
+    {
+        var norm = new MockStringNormalizationService();
+        var workDetails = new FixedWorkDetailsService("J.R.R. Tolkien");
+        var service = new CandidateEnrichmentService(norm, workDetails);
+
+        var doc = new OpenLibrarySearchDoc
+        {
+            Key = "/works/OL45883W",
+            Title = "The Hobbit",
+            Author_name = "J.R.R. Tolkien (illustrator mix)",
+            Edition_count = 100
+        };
+
+        var result = await service.EnrichAsync(new[] { doc }, CancellationToken.None);
+
+        Assert.Single(result);
+        Assert.Equal(new[] { "J.R.R. Tolkien" }, result[0].PrimaryAuthors);
+    }
+
+    [Fact]
+    public async Task EnrichAsync_WorkDetailsReturnsEmpty_KeepsSearchDocAuthors()
+    {
+        var norm = new MockStringNormalizationService();
+        var workDetails = new NoOpWorkDetailsService();
+        var service = new CandidateEnrichmentService(norm, workDetails);
+
+        var doc = new OpenLibrarySearchDoc
+        {
+            Key = "/works/OL45883W",
+            Title = "The Hobbit",
+            Author_name = "J.R.R. Tolkien",
+            Edition_count = 100
+        };
+
+        var result = await service.EnrichAsync(new[] { doc }, CancellationToken.None);
+
+        Assert.Single(result);
+        Assert.Equal(new[] { "J.R.R. Tolkien" }, result[0].PrimaryAuthors);
+    }
+
+    [Fact]
+    public async Task EnrichAsync_WorkDetailsReturnsAuthors_DemotesSearchDocAuthorsToContributors()
+    {
+        var norm = new MockStringNormalizationService();
+        var workDetails = new FixedWorkDetailsService("J.R.R. Tolkien");
+        var service = new CandidateEnrichmentService(norm, workDetails);
+
+        var doc = new OpenLibrarySearchDoc
+        {
+            Key = "/works/OL45883W",
+            Title = "The Hobbit",
+            Author_names = new[] { "J.R.R. Tolkien", "Alan Lee" }, // Alan Lee is illustrator
+            Edition_count = 100
+        };
+
+        var result = await service.EnrichAsync(new[] { doc }, CancellationToken.None);
+
+        Assert.Single(result);
+        // Work-detail authors become primary
+        Assert.Equal(new[] { "J.R.R. Tolkien" }, result[0].PrimaryAuthors);
+        // Search-doc authors demoted to contributors
+        Assert.Contains("Alan Lee", result[0].ContributorAuthors);
     }
 }

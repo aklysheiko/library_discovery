@@ -7,10 +7,14 @@ namespace LibraryDiscovery.Infrastructure.OpenLibrary;
 public class CandidateEnrichmentService : ICandidateEnrichmentService
 {
     private readonly IStringNormalizationService _normalizationService;
+    private readonly IWorkDetailsService _workDetailsService;
 
-    public CandidateEnrichmentService(IStringNormalizationService normalizationService)
+    public CandidateEnrichmentService(
+        IStringNormalizationService normalizationService,
+        IWorkDetailsService workDetailsService)
     {
         _normalizationService = normalizationService ?? throw new ArgumentNullException(nameof(normalizationService));
+        _workDetailsService = workDetailsService ?? throw new ArgumentNullException(nameof(workDetailsService));
     }
 
     /// <summary>
@@ -33,7 +37,27 @@ public class CandidateEnrichmentService : ICandidateEnrichmentService
         {
             try
             {
-                candidates.Add(CreateCandidateFromDoc(doc));
+                var candidate = CreateCandidateFromDoc(doc);
+
+                // Resolve true primary authors from the canonical work record.
+                // The search API mixes contributors (illustrators, editors) into
+                // author_name; /works/{id}.json.authors is the authoritative source.
+                if (!string.IsNullOrEmpty(candidate.OpenLibraryWorkId))
+                {
+                    var primaryAuthors = await _workDetailsService
+                        .GetPrimaryAuthorsAsync(candidate.OpenLibraryWorkId, cancellationToken);
+
+                    if (primaryAuthors.Length > 0)
+                    {
+                        // Demote search-doc authors to contributors; they may include
+                        // editors/illustrators that the work record does not list.
+                        candidate.ContributorAuthors = candidate.PrimaryAuthors;
+                        candidate.PrimaryAuthors = primaryAuthors;
+                        candidate.NormalizedPrimaryAuthorSurnames = ExtractSurnames(primaryAuthors);
+                    }
+                }
+
+                candidates.Add(candidate);
             }
             catch (Exception)
             {
@@ -41,7 +65,7 @@ public class CandidateEnrichmentService : ICandidateEnrichmentService
             }
         }
 
-        return await Task.FromResult(candidates.AsReadOnly());
+        return candidates.AsReadOnly();
     }
 
     /// <summary>
