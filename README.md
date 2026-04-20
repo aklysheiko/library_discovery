@@ -65,6 +65,8 @@ library_discovery/
     └── index.html                 # HTML template
 ```
 
+> **Note on Dockerfile**: The `Dockerfile` builds the backend API for cloud deployment only (used by the CI/CD workflow to push an image to GitHub Container Registry). You do **not** need Docker to run the app locally — use `start.sh` / `start.bat` or the manual steps below instead.
+
 ## Quick Start
 
 ### Option 1: Run Everything at Once (Recommended)
