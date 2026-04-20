@@ -35,7 +35,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-6xl mx-auto px-4 py-8">
@@ -49,7 +49,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         {/* Search Box */}
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
           <form onSubmit={handleSearch} className="space-y-4">
@@ -174,7 +174,7 @@ function App() {
             </a>
           </p>
           <p className="text-sm mt-2">
-            © 2024 Library Discovery - Find books faster
+            © {new Date().getFullYear()} Library Discovery - Find books faster
           </p>
         </div>
       </footer>
