@@ -1,6 +1,3 @@
-using LibraryDiscovery.Domain.Entities;
-using LibraryDiscovery.Domain.ValueObjects;
-
 namespace LibraryDiscovery.Application.Interfaces;
 
 /// <summary>

@@ -1,5 +1,3 @@
-using LibraryDiscovery.Application.Interfaces;
-
 namespace LibraryDiscovery.Infrastructure;
 
 /// <summary>

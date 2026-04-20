@@ -1,7 +1,3 @@
-using LibraryDiscovery.Application.Interfaces;
-using LibraryDiscovery.Domain.ValueObjects;
-using Microsoft.Extensions.Logging;
-
 namespace LibraryDiscovery.Infrastructure.Llm;
 
 /// <summary>

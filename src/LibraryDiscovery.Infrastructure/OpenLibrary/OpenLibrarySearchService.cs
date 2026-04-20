@@ -1,8 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Web;
-using LibraryDiscovery.Application.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace LibraryDiscovery.Infrastructure.OpenLibrary;
 

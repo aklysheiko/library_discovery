@@ -1,5 +1,3 @@
-using LibraryDiscovery.Application.DTOs;
-
 namespace LibraryDiscovery.Application.Interfaces;
 
 /// <summary>

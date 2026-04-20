@@ -1,8 +1,3 @@
-using LibraryDiscovery.Application.Interfaces;
-using LibraryDiscovery.Infrastructure.OpenLibrary;
-using LibraryDiscovery.Domain.Entities;
-using Xunit;
-
 namespace LibraryDiscovery.UnitTests.Infrastructure.OpenLibrary;
 
 public class CandidateEnrichmentServiceTests

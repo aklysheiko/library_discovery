@@ -1,6 +1,3 @@
-using LibraryDiscovery.Application.Interfaces;
-using LibraryDiscovery.Domain.Entities;
-
 namespace LibraryDiscovery.Infrastructure.OpenLibrary;
 
 /// <summary>

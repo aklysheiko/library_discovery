@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace LibraryDiscovery.UnitTests.Controllers;
 
 public class BooksControllerTests

@@ -1,9 +1,4 @@
-using LibraryDiscovery.Application.Interfaces;
-using LibraryDiscovery.Domain.ValueObjects;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 
 namespace LibraryDiscovery.Infrastructure.Llm;
 
