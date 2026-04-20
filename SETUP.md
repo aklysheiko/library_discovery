@@ -8,17 +8,17 @@
 
 ### Configuration
 
-The backend runs on `https://localhost:7194` by default. The frontend is configured to use this URL.
+The backend runs on `http://localhost:5248` by default (HTTP profile). The frontend Vite proxy is configured to forward `/api` requests to this URL.
 
 ### Running the Server
 
 From the project root:
 
 ```bash
-dotnet run --project LibraryDiscovery/LibraryDiscovery.csproj
+dotnet run --project LibraryDiscovery
 ```
 
-Or build and run:
+Or build first:
 
 ```bash
 dotnet build
@@ -26,8 +26,8 @@ dotnet run --project LibraryDiscovery
 ```
 
 The API will be available at:
-- `https://localhost:7194/api/books/match` - Book matching endpoint
-- `https://localhost:7194/swagger` - Swagger UI documentation
+- `http://localhost:5248/api/books/match` - Book matching endpoint
+- `http://localhost:5248/swagger` - Swagger UI documentation
 
 ### Testing
 
@@ -74,6 +74,7 @@ Matches a book query to Open Library books.
       "openLibraryWorkId": "OL123456W",
       "coverUrl": "https://covers.openlibrary.org/b/id/123-M.jpg",
       "score": 95,
+      "matchTier": "ExactTitleAndPrimaryAuthor",
       "explanation": "Exact title match: 'The Lord of the Rings' Primary author surname match: J.R.R. Tolkien"
     }
   ],
@@ -107,4 +108,4 @@ Key NuGet packages:
 - Microsoft.AspNetCore.OpenApi
 - Swashbuckle.AspNetCore (Swagger)
 
-No external LLM APIs required - uses regex-based query parsing.
+Supports optional Gemini AI query parsing (set `GEMINI_API_KEY` via dotnet user-secrets or environment variable). Falls back to regex-based parsing if no key is configured.

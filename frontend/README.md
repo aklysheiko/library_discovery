@@ -24,7 +24,7 @@ npm run dev
 
 The app will be available at `http://localhost:5173`
 
-**Important:** Make sure the backend API is running on `https://localhost:7194` or update the `API_BASE_URL` in `src/api.ts`.
+**Important:** Make sure the backend API is running on `http://localhost:5248` (the Vite proxy forwards `/api` calls there automatically).
 
 ### Building
 
@@ -54,11 +54,11 @@ frontend/
 
 ## Features
 
-- 🔍 Smart book search with query parsing
-- 📚 Results ranked by match score
-- 🎨 Clean, responsive UI with Tailwind CSS
-- 🔗 Direct links to Open Library
-- 📱 Mobile-friendly design
+- Smart book search with query parsing
+- Results ranked by match tier (colour-coded badge per result)
+- Clean, responsive UI with Tailwind CSS
+- Direct links to Open Library
+- Mobile-friendly design
 
 ## API Integration
 

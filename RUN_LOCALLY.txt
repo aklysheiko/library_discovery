@@ -1,0 +1,152 @@
+================================================================================
+  LIBRARY DISCOVERY — RUN LOCALLY
+================================================================================
+
+PREREQUISITES
+-------------
+
+1. .NET 8 SDK
+   Download: https://dotnet.microsoft.com/download/dotnet/8.0
+   Verify:   dotnet --version   (must show 8.x.x)
+
+2. Node.js 18 or later
+   Download: https://nodejs.org  (choose the LTS version)
+   Verify:   node --version      (must show v18.x or higher)
+             npm --version       (included with Node.js)
+
+3. Git
+   Download: https://git-scm.com/downloads
+   Verify:   git --version
+
+4. Gemini API key (OPTIONAL — the app works without it using a regex fallback,
+   but AI-powered query parsing gives much better results)
+   Get a free key: https://ai.google.dev/gemini-api/docs/api-key
+
+   - The deployed version of the app already has GEMINI API KEY  in the Github secrets
+
+
+CLONE THE REPOSITORY
+--------------------
+
+  git clone https://github.com/aklysheiko/library_discovery.git
+  cd library_discovery
+
+
+CONFIGURE THE GEMINI API KEY (optional but recommended)
+-------------------------------------------------------
+
+Option A — dotnet user-secrets (recommended, key never touches a file):
+
+  cd LibraryDiscovery
+  dotnet user-secrets set "GEMINI_API_KEY" "your-key-here"
+  cd ..
+
+Option B — appsettings.Development.json (easier but do NOT commit the file):
+
+  Open  LibraryDiscovery/appsettings.Development.json
+  Set   "GEMINI_API_KEY": "your-key-here"
+
+If no key is configured the app falls back to a regex-based parser automatically.
+
+
+RUN THE APPLICATION
+-------------------
+
+QUICKSTART (runs backend + frontend together):
+
+  macOS / Linux:
+    chmod +x start.sh
+    ./start.sh
+
+  Windows:
+    start.bat
+
+Then open http://localhost:5173 in your browser.
+Press Ctrl+C (or close the windows on Windows) to stop both services.
+
+---
+
+MANUAL START (if you prefer separate terminals):
+
+Terminal 1 — Backend API:
+
+  dotnet run --project LibraryDiscovery
+
+  Expected output:  "Now listening on http://localhost:5248"
+  Swagger UI:       http://localhost:5248/swagger
+  (Verify the API is up before starting the frontend)
+
+Terminal 2 — Frontend:
+
+  cd frontend
+  npm install        (only needed the first time or after pulling changes)
+  npm run dev
+
+  Expected output:  "Local: http://localhost:5173"
+  Open http://localhost:5173 in your browser.
+
+The frontend proxies all /api calls to localhost:5248 automatically — both
+processes must be running at the same time.
+
+
+RUN THE TESTS
+-------------
+
+  dotnet test
+
+Expected result: 130 tests, 0 failures.
+
+To run only a specific test project:
+
+  dotnet test tests/LibraryDiscovery.UnitTests/
+
+
+VERIFY END-TO-END
+-----------------
+
+Once both services are running, try this query in the search box:
+
+  tolkien hobbit 1937
+
+You should see "The Hobbit" as the top result with:
+- Match tier: "Exact Title And Primary Author" (green badge)
+- Primary author: J.R.R. Tolkien
+- First published: 1937
+- A short explanation of why it matched
+
+Try an author-only query to see the author fallback mode:
+
+  jane austen
+
+You should see Austen's top works ranked by edition count (Pride and Prejudice,
+Sense and Sensibility, etc.) with purple "Author Only Fallback" badges.
+
+
+TROUBLESHOOTING
+---------------
+
+Port already in use:
+  The backend defaults to http://localhost:5248. If that port is taken:
+    dotnet run --project LibraryDiscovery --urls "http://localhost:5300"
+  Then update frontend/vite.config.ts → target to match the new port.
+
+HTTPS certificate error on first run (macOS / Linux):
+  dotnet dev-certs https --trust
+  Restart your browser after trusting.
+
+npm install fails — Node version too old:
+  Run  node --version  and confirm it is v18 or higher.
+  Use nvm (https://github.com/nvm-sh/nvm) to manage multiple Node versions.
+
+No results returned:
+  - Confirm the backend terminal shows "Now listening on http://localhost:5248"
+  - Check the backend logs for errors (visible in Terminal 1)
+  - If no Gemini key is set, query parsing uses regex — try simple queries like
+    "hobbit tolkien" rather than natural sentences
+  - The app calls the Open Library public API (openlibrary.org); if that is down
+    or rate-limited you may get empty results
+
+Backend does not pick up the Gemini key:
+  If you used user-secrets, make sure you ran the command from the
+  LibraryDiscovery/ subdirectory (not the repo root).
+  Verify:  cd LibraryDiscovery && dotnet user-secrets list

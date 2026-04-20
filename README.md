@@ -2,15 +2,15 @@
 
 A full-stack book discovery application that intelligently matches messy book queries to exact books in the Open Library.
 
-## 🎯 What it does
+## What it does
 
 - **Smart Query Parsing**: Extracts title, author, year, and keywords from messy queries (e.g., "lord of rings tolkien 1954")
 - **Comprehensive Search**: Searches Open Library for matching books
-- **Intelligent Ranking**: Scores matches based on title (65pts), author (35pts), year (5pts), and popularity (3pts)
+- **Intelligent Ranking**: Scores matches based on title (60pts), author (30pts), year (5pts), and popularity (3pts)
 - **Deduplication**: Removes duplicate search results and keeps the best version
 - **Explanation Generation**: Explains why each book matched the query
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -20,7 +20,7 @@ A full-stack book discovery application that intelligently matches messy book qu
                        │ HTTP/HTTPS
 ┌──────────────────────▼──────────────────────────────┐
 │  .NET 8 API (Backend)                               │
-│  https://localhost:7194                             │
+│  http://localhost:5248                              │
 │                                                     │
 │  ┌─────────────────────────────────────────────┐   │
 │  │ BooksController (/api/books/match)          │   │
@@ -42,7 +42,7 @@ A full-stack book discovery application that intelligently matches messy book qu
                    Public API
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 library_discovery/
@@ -55,7 +55,7 @@ library_discovery/
 │   ├── LibraryDiscovery.Application/  # Interfaces and DTOs
 │   └── LibraryDiscovery.Infrastructure/  # Service implementations
 ├── tests/
-│   └── LibraryDiscovery.UnitTests/    # 110 unit tests
+│   └── LibraryDiscovery.UnitTests/    # 130 unit tests
 └── frontend/                      # React + Vite application
     ├── src/
     │   ├── components/            # React components
@@ -65,7 +65,7 @@ library_discovery/
     └── index.html                 # HTML template
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Run Everything at Once (Recommended)
 
@@ -96,23 +96,23 @@ npm run dev
 
 Then open: **http://localhost:5173**
 
-## 📖 Usage
+## Usage
 
 1. Enter a book query (e.g., "Harry Potter by Rowling", "Hobbit 1937", "Lord Rings Tolkien")
 2. The system parses your query and searches Open Library
 3. Results are ranked by relevance with explanations
 4. Click "View on OpenLibrary" to see the full book page
 
-## 🧪 Testing
+## Testing
 
 Run all tests:
 ```bash
 dotnet test
 ```
 
-Current: **110 unit tests** ✅
+Current: **130 unit tests** 
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend (.NET 8)
 - **Language**: C# 12
@@ -127,18 +127,18 @@ Current: **110 unit tests** ✅
 - **HTTP Client**: Axios
 - **Package Manager**: npm
 
-## 📋 Features
+## Features
 
-✅ **Smart Query Parsing**: Regex-based parsing (no LLM required)
-✅ **Open Library Integration**: Real-time book search
-✅ **Deterministic Scoring**: Clear, auditable match scoring
-✅ **Deduplication**: Automatic duplicate removal
-✅ **Result Enrichment**: Normalized titles and extracted authors
-✅ **Explanations**: Human-readable match explanations
-✅ **Responsive UI**: Mobile-friendly design
-✅ **No Authentication**: Public, open access
+**Smart Query Parsing**: Gemini AI-powered parsing with regex fallback (works without an API key)
+**Open Library Integration**: Real-time book search
+**Deterministic Scoring**: Clear, auditable match scoring
+**Deduplication**: Automatic duplicate removal
+**Result Enrichment**: Normalized titles and extracted authors
+**Explanations**: Human-readable match explanations
+**Responsive UI**: Mobile-friendly design
+**No Authentication**: Public, open access
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### POST /api/books/match
 Match a book query to Open Library books.
@@ -160,6 +160,7 @@ Match a book query to Open Library books.
       "title": "The Lord of the Rings",
       "primaryAuthors": ["J.R.R. Tolkien"],
       "score": 95,
+      "matchTier": "ExactTitleAndPrimaryAuthor",
       "explanation": "...",
       "coverUrl": "...",
       "openLibraryWorkId": "..."
@@ -168,29 +169,31 @@ Match a book query to Open Library books.
 }
 ```
 
-## 🎓 Learning Resources
+## Learning Resources
 
 - See [SETUP.md](SETUP.md) for detailed backend setup
+- See [RUN_LOCALLY.txt](RUN_LOCALLY.txt) for full local setup instructions including frontend
 - See [frontend/README.md](frontend/README.md) for detailed frontend setup
-- API documentation available at: https://localhost:7194/swagger
+- API documentation available at: http://localhost:5248/swagger
 
-## 📝 Notes
+## Notes
 
-- No external LLM APIs required
+- Gemini API key optional — app falls back to regex-based parsing if not configured
 - No authentication needed
 - All data comes from Open Library (public domain API)
 - CORS enabled for local development
 - Frontend configured for localhost:5173
-- Backend configured for localhost:7194
+- Backend configured for localhost:5248
 
-## 🐛 Known Issues
+## Known Issues
 
 - Text rendering issue in some docs (display workaround included)
-- Unused exception variable warning in OpenLibrarySearchService
 
-## 🚀 Future Improvements
+## Future Improvements
 
-- Add LLM-based query parsing as alternative
+- Authentication: No auth is currently in place — add user accounts to support personalisation and access control
+- Rate limiting: The API has no rate limiting; add throttling to prevent abuse and avoid hammering the Open Library upstream API
+- Pagination: Results are currently capped at 5 with no way to request more — expose page/offset parameters
 - Implement caching for frequently searched books
 - Add user preferences and saved searches
 - Support for multiple languages
@@ -198,5 +201,3 @@ Match a book query to Open Library books.
 - User ratings and reviews
 
 ---
-
-**Built with ❤️ for book lovers**
