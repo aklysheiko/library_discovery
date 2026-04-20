@@ -172,7 +172,7 @@ Match a book query to Open Library books.
   ]
 }
 ```
-## Back-End 
+## Back-End sequence diagram
 ![App screenshot](docs/book-match-sequence.png)
 
 ## Top level view of the system
